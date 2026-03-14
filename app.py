@@ -26,17 +26,20 @@ font-size:18px;
 color:gray;
 }
 
-.score{
-font-size:30px;
-font-weight:bold;
-color:#4CAF50;
-}
-
 .footer{
 text-align:center;
 font-size:14px;
 margin-top:50px;
 color:gray;
+}
+
+.skill-box{
+padding:6px;
+border-radius:8px;
+margin:4px;
+display:inline-block;
+background-color:#262730;
+color:white;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -58,6 +61,7 @@ def extract_text_from_pdf(file):
             text += page.extract_text()
     return text
 
+
 # ---------- MAIN LOGIC ----------
 if uploaded_file is not None and job_description != "":
 
@@ -71,16 +75,36 @@ if uploaded_file is not None and job_description != "":
     similarity = cosine_similarity(matrix)[0][1]
     score = round(similarity * 100, 2)
 
-    st.subheader("Match Score")
-    st.markdown(f'<p class="score">{score}%</p>', unsafe_allow_html=True)
+    # ---------- DASHBOARD METRICS ----------
+    col1, col2 = st.columns(2)
 
-    # ATS style progress bar
+    with col1:
+        st.metric("ATS Score", f"{score}%")
+
+    # ---------- KEYWORD EXTRACTION ----------
+    vectorizer = CountVectorizer(stop_words='english')
+    jd_matrix = vectorizer.fit_transform([job_description])
+    keywords = vectorizer.get_feature_names_out()
+
+    matched_keywords = []
+
+    for word in keywords:
+        if word in resume_text.lower():
+            matched_keywords.append(word)
+
+    keyword_score = int((len(matched_keywords) / len(keywords)) * 100)
+
+    with col2:
+        st.metric("Keyword Match Score", f"{keyword_score}%")
+
+    # ---------- PROGRESS BARS ----------
+    st.subheader("ATS Score Progress")
     st.progress(score/100)
 
-    if score > 70:
-        st.success("Good match for the job!")
-    else:
-        st.warning("Resume needs improvement.")
+    st.subheader("Keyword Match Progress")
+    st.progress(keyword_score/100)
+
+    st.divider()
 
     # ---------- SKILLS ----------
     skills = [
@@ -97,9 +121,12 @@ if uploaded_file is not None and job_description != "":
     st.subheader("Detected Skills")
 
     if resume_skills:
-        st.write(", ".join(resume_skills))
+        for skill in resume_skills:
+            st.markdown(f'<span class="skill-box">✔ {skill}</span>', unsafe_allow_html=True)
     else:
         st.write("No major skills detected.")
+
+    st.divider()
 
     # ---------- MISSING SKILLS ----------
     missing_skills = []
@@ -111,22 +138,14 @@ if uploaded_file is not None and job_description != "":
     st.subheader("Suggested Skills to Add")
 
     if missing_skills:
-        st.write(", ".join(missing_skills))
+        for skill in missing_skills:
+            st.warning(f"⚠ {skill}")
     else:
-        st.write("Your resume already matches most skills!")
+        st.success("Your resume already matches most skills!")
 
-    # ---------- KEYWORD EXTRACTION ----------
-    vectorizer = CountVectorizer(stop_words='english')
-    jd_matrix = vectorizer.fit_transform([job_description])
+    st.divider()
 
-    keywords = vectorizer.get_feature_names_out()
-
-    matched_keywords = []
-
-    for word in keywords:
-        if word in resume_text.lower():
-            matched_keywords.append(word)
-
+    # ---------- KEYWORDS ----------
     st.subheader("Matched Keywords from Job Description")
 
     if matched_keywords:
@@ -134,12 +153,7 @@ if uploaded_file is not None and job_description != "":
     else:
         st.write("No important keywords detected.")
 
-    # ---------- KEYWORD MATCH SCORE ----------
-    keyword_score = int((len(matched_keywords) / len(keywords)) * 100)
-
-    st.subheader("Keyword Match Score")
-    st.progress(keyword_score/100)
-    st.write(f"{keyword_score}% keywords from the job description appear in the resume.")
+    st.divider()
 
     # ---------- SKILL MATCH CHART ----------
     st.subheader("Skill Match Visualization")
@@ -147,9 +161,37 @@ if uploaded_file is not None and job_description != "":
     skill_counts = [len(resume_skills), len(missing_skills)]
     labels = ["Matched Skills", "Missing Skills"]
 
-    fig, ax = plt.subplots()
-    ax.bar(labels, skill_counts)
+    fig, ax = plt.subplots(figsize=(6,4))
+
+    bars = ax.bar(labels, skill_counts, color=["#4CAF50","#FF6B6B"])
+
+    ax.set_title("Skill Match Analysis")
+    ax.set_ylabel("Number of Skills")
+
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(bar.get_x()+bar.get_width()/2,yval+0.1,yval,ha='center')
+
     st.pyplot(fig)
+
+    # ---------- PIE CHART ----------
+    st.subheader("Skill Distribution")
+
+    fig2, ax2 = plt.subplots()
+
+    ax2.pie(
+        skill_counts,
+        labels=labels,
+        autopct='%1.1f%%',
+        colors=["#4CAF50","#FF6B6B"],
+        startangle=90
+    )
+
+    ax2.axis("equal")
+
+    st.pyplot(fig2)
+
+    st.divider()
 
     # ---------- RESUME SUGGESTIONS ----------
     st.subheader("Resume Suggestions")
@@ -161,6 +203,7 @@ if uploaded_file is not None and job_description != "":
     else:
         st.success("Your resume is well optimized for this job.")
 
+
 # ---------- FOOTER ----------
 st.markdown("""
 ---
@@ -168,8 +211,8 @@ st.markdown("""
 
 👨‍💻 Connect with Me  
 
-🔗 <a href="https://linkedin.com/in/YOUR-LINKEDIN" target="_blank">LinkedIn</a> | 
-💻 <a href="https://github.com/YOUR-GITHUB" target="_blank">GitHub</a>  
+🔗 <a href="https://linkedin.com/in/YOUR-LINKEDIN" target="_blank">LinkedIn</a> |
+💻 <a href="https://github.com/YOUR-GITHUB" target="_blank">GitHub</a>
 
 </div>
 """, unsafe_allow_html=True)
